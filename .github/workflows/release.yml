@@ -1,0 +1,57 @@
+name: Publish beta release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Build, verify, and publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Derive release version
+        id: version
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          [[ "${version}" =~ ^[A-Za-z0-9._-]+$ ]]
+          printf 'value=%s\n' "${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build and test Linux release
+        run: bash hack/build-release.sh "${{ steps.version.outputs.value }}"
+
+      - name: Create prerelease and upload files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          gh release create "${TAG}" \
+            "dist/flux-${VERSION}.tar.gz" \
+            "dist/flux-${VERSION}.tar.gz.sha256" \
+            "dist/install.sh#install.sh" \
+            --title "L4Way ${TAG}" \
+            --notes "首个公开 Beta：Linux 内核原生 TCP/UDP 转发、节点 Agent 和 Web 控制台。" \
+            --prerelease
