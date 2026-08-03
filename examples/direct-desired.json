@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "node_id": "node-a",
+  "generation": 1,
+  "forwards": [
+    {
+      "id": "example-web",
+      "user_id": "example-user",
+      "protocols": [
+        "tcp",
+        "udp"
+      ],
+      "ingress_node_id": "node-a",
+      "listen": {
+        "address": "192.0.2.10",
+        "port": 443
+      },
+      "target": {
+        "address": "198.51.100.20",
+        "port": 8443
+      },
+      "path_mode": "direct",
+      "snat": {
+        "mode": "masquerade"
+      },
+      "lifecycle": "active",
+      "resource_version": 1
+    }
+  ]
+}

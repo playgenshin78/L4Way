@@ -1,0 +1,156 @@
+{
+  "schema_version": 1,
+  "id": "edge-prod",
+  "revision": 1,
+  "node_offline_after_seconds": 90,
+  "rollout": {
+    "canary_percent": 100
+  },
+  "service_cidrs": [
+    "10.253.0.0/24"
+  ],
+  "nodes": [
+    {
+      "id": "node-a",
+      "enabled": true,
+      "roles": [
+        "ingress"
+      ],
+      "labels": {
+        "region": "hk"
+      },
+      "listen_ips": [
+        "203.0.113.10"
+      ],
+      "failure_domain": "hk-zone-a",
+      "capacity": {
+        "max_forwards": 10000,
+        "ingress_bits_per_second": 10000000000,
+        "egress_bits_per_second": 10000000000
+      },
+      "fabric_links": [
+        {
+          "id": "fabric-ab",
+          "peer_node_id": "node-b",
+          "transport": "wireguard",
+          "interface": "fluxwg0",
+          "local_address": "10.250.0.0/31",
+          "peer_address": "10.250.0.1",
+          "mtu": 1420,
+          "routing_id": 100,
+          "wireguard": {
+            "endpoint": "198.51.100.20:51820",
+            "listen_port": 51820,
+            "persistent_keepalive_seconds": 25
+          },
+          "resource_version": 1
+        }
+      ]
+    },
+    {
+      "id": "node-b",
+      "enabled": true,
+      "roles": [
+        "exit"
+      ],
+      "labels": {
+        "region": "sg"
+      },
+      "listen_ips": [
+        "203.0.113.20"
+      ],
+      "failure_domain": "sg-zone-a",
+      "capacity": {
+        "max_forwards": 10000,
+        "ingress_bits_per_second": 10000000000,
+        "egress_bits_per_second": 10000000000
+      },
+      "fabric_links": [
+        {
+          "id": "fabric-ba",
+          "peer_node_id": "node-a",
+          "transport": "wireguard",
+          "interface": "fluxwg0",
+          "local_address": "10.250.0.1/31",
+          "peer_address": "10.250.0.0",
+          "mtu": 1420,
+          "routing_id": 101,
+          "wireguard": {
+            "endpoint": "198.51.100.10:51820",
+            "listen_port": 51820,
+            "persistent_keepalive_seconds": 25
+          },
+          "resource_version": 1
+        }
+      ]
+    }
+  ],
+  "backend_pools": [
+    {
+      "id": "web-pool",
+      "backends": [
+        {
+          "id": "primary",
+          "target": {
+            "address": "192.0.2.10",
+            "port": 8443
+          },
+          "priority": 10,
+          "resource_version": 1
+        },
+        {
+          "id": "secondary",
+          "target": {
+            "address": "192.0.2.20",
+            "port": 8443
+          },
+          "priority": 20,
+          "resource_version": 1
+        }
+      ],
+      "health": {
+        "interval_seconds": 2,
+        "timeout_milliseconds": 500,
+        "failure_threshold": 3,
+        "success_threshold": 2,
+        "stale_after_seconds": 10
+      },
+      "resource_version": 1
+    }
+  ],
+  "forwards": [
+    {
+      "id": "web",
+      "user_id": "user-a",
+      "protocols": [
+        "tcp"
+      ],
+      "listen": {
+        "address": "203.0.113.10",
+        "port": 443
+      },
+      "path_mode": "via_exit",
+      "ingress": {
+        "node_ids": [
+          "node-a"
+        ]
+      },
+      "exit": {
+        "node_ids": [
+          "node-b"
+        ]
+      },
+      "failure_domain_policy": "distinct",
+      "backend_pool_id": "web-pool",
+      "snat": {
+        "mode": "masquerade"
+      },
+      "reservation": {
+        "ingress_bits_per_second": 1000000000,
+        "egress_bits_per_second": 1000000000
+      },
+      "lifecycle": "active",
+      "resource_version": 1
+    }
+  ]
+}

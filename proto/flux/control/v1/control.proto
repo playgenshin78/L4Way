@@ -1,0 +1,199 @@
+syntax = "proto3";
+
+package flux.control.v1;
+
+option go_package = "flux.local/flux/gen/control/v1;controlv1";
+
+// AgentControl is the only long-lived controller/agent channel. The agent
+// always dials out; application data never enters this stream.
+service AgentControl {
+  rpc Connect(stream AgentEvent) returns (stream ControllerEvent);
+}
+
+message Capability {
+  string name = 1;
+  uint32 version = 2;
+}
+
+message AgentHello {
+  uint32 protocol_version = 1;
+  string node_id = 2;
+  string agent_version = 3;
+  repeated uint32 supported_schema_versions = 4;
+  repeated Capability capabilities = 5;
+  uint64 applied_generation = 6;
+  string applied_desired_checksum = 7;
+  string applied_program_checksum = 8;
+  uint64 pending_generation = 9;
+  string pending_desired_checksum = 10;
+  bytes session_nonce = 11;
+  string wireguard_public_key = 12;
+}
+
+enum ApplyStatus {
+  APPLY_STATUS_UNSPECIFIED = 0;
+  APPLY_STATUS_APPLIED = 1;
+  APPLY_STATUS_RETRYABLE_ERROR = 2;
+  APPLY_STATUS_PERMANENT_ERROR = 3;
+}
+
+enum ApplyErrorCode {
+  APPLY_ERROR_CODE_UNSPECIFIED = 0;
+  APPLY_ERROR_CODE_NONE = 1;
+  APPLY_ERROR_CODE_INVALID_SNAPSHOT = 2;
+  APPLY_ERROR_CODE_CHECKSUM_MISMATCH = 3;
+  APPLY_ERROR_CODE_UNSUPPORTED_CAPABILITY = 4;
+  APPLY_ERROR_CODE_STALE_GENERATION = 5;
+  APPLY_ERROR_CODE_GENERATION_CONFLICT = 6;
+  APPLY_ERROR_CODE_NODE_IDENTITY = 7;
+  APPLY_ERROR_CODE_DATAPLANE_CONFLICT = 8;
+  APPLY_ERROR_CODE_PREFLIGHT_FAILED = 9;
+  APPLY_ERROR_CODE_APPLY_FAILED = 10;
+  APPLY_ERROR_CODE_INTERNAL = 11;
+}
+
+message ApplyResult {
+  string node_id = 1;
+  uint64 generation = 2;
+  string desired_checksum = 3;
+  string program_checksum = 4;
+  ApplyStatus status = 5;
+  ApplyErrorCode error_code = 6;
+  string error_message = 7;
+  int64 observed_at_unix = 8;
+}
+
+message AgentHeartbeat {
+  string node_id = 1;
+  int64 observed_at_unix = 2;
+}
+
+enum UsageDirection {
+  USAGE_DIRECTION_UNSPECIFIED = 0;
+  USAGE_DIRECTION_UPLOAD = 1;
+  USAGE_DIRECTION_DOWNLOAD = 2;
+}
+
+message UsageDelta {
+  string forward_id = 1;
+  string protocol = 2;
+  UsageDirection direction = 3;
+  uint64 resource_version = 4;
+  uint64 packets = 5;
+  uint64 bytes = 6;
+  bool reset = 7;
+}
+
+message UsageBatch {
+  string node_id = 1;
+  string counter_epoch = 2;
+  uint64 sequence = 3;
+  uint64 generation = 4;
+  int64 observed_at_unix = 5;
+  repeated UsageDelta deltas = 6;
+}
+
+message UsageAck {
+  string counter_epoch = 1;
+  uint64 sequence = 2;
+}
+
+enum BackendHealthStatus {
+  BACKEND_HEALTH_STATUS_UNSPECIFIED = 0;
+  BACKEND_HEALTH_STATUS_UNKNOWN = 1;
+  BACKEND_HEALTH_STATUS_HEALTHY = 2;
+  BACKEND_HEALTH_STATUS_UNHEALTHY = 3;
+}
+
+message BackendHealthReport {
+  string node_id = 1;
+  uint64 generation = 2;
+  string pool_id = 3;
+  string backend_id = 4;
+  uint64 resource_version = 5;
+  BackendHealthStatus status = 6;
+  uint32 latency_milliseconds = 7;
+  string error_message = 8;
+  int64 observed_at_unix = 9;
+}
+
+enum NodeCommandKind {
+  NODE_COMMAND_KIND_UNSPECIFIED = 0;
+  NODE_COMMAND_KIND_TCP_CHECK = 1;
+  NODE_COMMAND_KIND_AGENT_UPGRADE = 2;
+  NODE_COMMAND_KIND_AGENT_UNINSTALL = 3;
+}
+
+// NodeCommand is sent only after an authenticated management action. Commands
+// are deliberately one-shot and deadline-bound; they are never scheduled by
+// the Agent itself.
+message NodeCommand {
+  string request_id = 1;
+  NodeCommandKind kind = 2;
+  int64 deadline_unix = 3;
+  string address = 4;
+  uint32 port = 5;
+  string release_url = 6;
+  string checksum_url = 7;
+}
+
+message NodeCommandResult {
+  string request_id = 1;
+  NodeCommandKind kind = 2;
+  bool success = 3;
+  string error_code = 4;
+  string error_message = 5;
+  int64 completed_at_unix = 6;
+  // TCP check connect time only. No payload or throughput test is performed.
+  uint64 latency_micros = 7;
+}
+
+// NodeCommandAck lets the Agent finish a destructive maintenance action only
+// after the Controller has received and matched its result.
+message NodeCommandAck {
+  string request_id = 1;
+  NodeCommandKind kind = 2;
+}
+
+message AgentEvent {
+  oneof payload {
+    AgentHello hello = 1;
+    ApplyResult apply_result = 2;
+    AgentHeartbeat heartbeat = 3;
+    UsageBatch usage_batch = 4;
+    BackendHealthReport backend_health = 5;
+    NodeCommandResult command_result = 6;
+  }
+}
+
+message DesiredSnapshot {
+  uint32 protocol_version = 1;
+  uint32 schema_version = 2;
+  string node_id = 3;
+  uint64 generation = 4;
+  string desired_checksum = 5;
+  bytes desired_state_json = 6;
+  repeated Capability required_capabilities = 7;
+  int64 issued_at_unix = 8;
+}
+
+message ControllerPing {
+  bytes nonce = 1;
+  int64 sent_at_unix = 2;
+}
+
+message Disconnect {
+  string reason = 1;
+  bool retryable = 2;
+}
+
+message ControllerEvent {
+  oneof payload {
+    DesiredSnapshot snapshot = 1;
+    ControllerPing ping = 2;
+    Disconnect disconnect = 3;
+    UsageAck usage_ack = 4;
+    NodeCommand command = 5;
+    NodeCommandAck command_ack = 6;
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "schema_version": 2,
+  "node_id": "node-a",
+  "generation": 1,
+  "user_policies": [
+    {
+      "user_id": "user-a",
+      "rate_limit": {
+        "ingress_bits_per_second": 50000000,
+        "egress_bits_per_second": 100000000,
+        "burst_bytes": 262144
+      },
+      "traffic_quota": {
+        "bytes": 10737418240,
+        "policy": "pause"
+      },
+      "resource_version": 1
+    }
+  ],
+  "forwards": [
+    {
+      "id": "web-limited",
+      "user_id": "user-a",
+      "protocols": ["tcp", "udp"],
+      "ingress_node_id": "node-a",
+      "listen": {"address": "192.0.2.10", "port": 443},
+      "target": {"address": "198.51.100.20", "port": 8443},
+      "path_mode": "direct",
+      "snat": {"mode": "masquerade"},
+      "rate_limit": {
+        "ingress_bits_per_second": 10000000,
+        "egress_bits_per_second": 20000000,
+        "burst_bytes": 131072
+      },
+      "traffic_quota": {"bytes": 5368709120, "policy": "pause"},
+      "expires_at": "2030-01-01T00:00:00Z",
+      "lifecycle": "active",
+      "resource_version": 1
+    },
+    {
+      "id": "ssh-draining",
+      "user_id": "user-a",
+      "protocols": ["tcp"],
+      "ingress_node_id": "node-a",
+      "listen": {"address": "192.0.2.10", "port": 2222},
+      "target": {"address": "198.51.100.21", "port": 22},
+      "path_mode": "direct",
+      "snat": {"mode": "masquerade"},
+      "drain_deadline": "2030-01-01T00:10:00Z",
+      "lifecycle": "draining",
+      "resource_version": 1
+    }
+  ]
+}

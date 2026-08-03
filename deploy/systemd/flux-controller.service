@@ -1,0 +1,54 @@
+[Unit]
+Description=Flux single-controller service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=flux-controller
+Group=flux-controller
+UMask=0077
+EnvironmentFile=/etc/flux-controller/flux-controller.env
+StateDirectory=flux-controller
+RuntimeDirectory=flux-controller
+WorkingDirectory=/var/lib/flux-controller
+ExecStart=/usr/local/bin/flux-controller serve \
+  --database=/var/lib/flux-controller/flux.db \
+  --controller-key=/var/lib/flux-controller/controller-noise.key \
+  --lock-file=/run/flux-controller/controller.lock \
+  --enroll-address=${FLUX_ENROLL_ADDRESS} \
+  --control-address=${FLUX_CONTROL_ADDRESS} \
+  --public-enroll-address=${FLUX_PUBLIC_ENROLL_ADDRESS} \
+  --public-control-address=${FLUX_PUBLIC_CONTROL_ADDRESS} \
+  --node-installer-url=${FLUX_NODE_INSTALLER_URL} \
+  --node-release-url=${FLUX_NODE_RELEASE_URL} \
+  --management-address=127.0.0.1:8080 \
+  --management-cookie-secure=${FLUX_MANAGEMENT_COOKIE_SECURE} \
+  --management-session-ttl=${FLUX_MANAGEMENT_SESSION_TTL} \
+  --management-plan-id=${FLUX_MANAGEMENT_PLAN_ID} \
+  --management-backup-directory=/var/lib/flux-controller/backups \
+  --web-root=${FLUX_WEB_ROOT} \
+  --snapshot-poll-interval=${FLUX_SNAPSHOT_POLL_INTERVAL} \
+  --ping-interval=${FLUX_PING_INTERVAL} \
+  --auth-check-interval=${FLUX_AUTH_CHECK_INTERVAL} \
+  --heartbeat-timeout=${FLUX_HEARTBEAT_TIMEOUT}
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=15s
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectControlGroups=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/flux-controller /run/flux-controller
+
+[Install]
+WantedBy=multi-user.target
