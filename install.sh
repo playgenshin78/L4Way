@@ -568,6 +568,11 @@ install_controller() {
   rm -rf -- "${TEMP_DIR}/web-new"
   install -d -m 0755 "${TEMP_DIR}/web-new"
   cp -a "${RELEASE_ROOT}/web/." "${TEMP_DIR}/web-new/"
+  # The release is extracted under umask 077. The Controller runs as an
+  # unprivileged user, so only the public web assets need their normal modes
+  # restored before they are installed outside the protected state directory.
+  find "${TEMP_DIR}/web-new" -type d -exec chmod 0755 {} +
+  find "${TEMP_DIR}/web-new" -type f -exec chmod 0644 {} +
   rm -rf -- /opt/flux/web
   mv "${TEMP_DIR}/web-new" /opt/flux/web
   install -m 0644 "${RELEASE_ROOT}/deploy/systemd/flux-controller.service" /etc/systemd/system/flux-controller.service
