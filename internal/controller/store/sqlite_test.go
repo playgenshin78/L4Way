@@ -292,9 +292,10 @@ func TestSQLitePendingNodeCanBootstrapInitialClusterPlan(t *testing.T) {
 		t.Fatalf("second ensure pending node created=%v err=%v", created, err)
 	}
 	plan := cluster.Plan{
-		SchemaVersion: 1,
-		ID:            "default",
-		Revision:      1,
+		SchemaVersion:           1,
+		ID:                      "default",
+		Revision:                1,
+		NodeOfflineAfterSeconds: 90,
 		Nodes: []cluster.Node{{
 			ID: "node-a", Enabled: true,
 			Roles:         []cluster.NodeRole{cluster.RoleIngress, cluster.RoleExit},
