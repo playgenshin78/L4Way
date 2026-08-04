@@ -668,6 +668,10 @@ install_agent() {
   backup_path /usr/local/bin/flux-agent
   backup_path /etc/systemd/system/flux-agent.service
   backup_path /etc/systemd/system/flux-agent-maintenance.service
+  # `flux-agent install` creates its durable state before contacting the
+  # Controller. Keep that directory in the rollback set so a failed initial
+  # enrollment leaves no incomplete local identity or state behind.
+  backup_path /var/lib/flux-agent
   local -a arguments=(install --bundle-base64 "${BUNDLE_BASE64}")
   if [[ ${ENABLE_FABRIC} -eq 1 ]]; then
     arguments+=(--enable-fabric)
