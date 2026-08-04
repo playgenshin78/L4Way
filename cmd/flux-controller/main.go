@@ -57,6 +57,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		err = runMigrate(args[1:], stdout, stderr)
 	case "owner-init":
 		err = runOwnerInit(args[1:], stdout, stderr)
+	case "ensure-node":
+		err = runEnsureNode(args[1:], stdout, stderr)
 	case "token":
 		err = runToken(args[1:], stdout, stderr)
 	case "publish":
@@ -178,6 +180,28 @@ func runOwnerInit(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	return writeJSON(stdout, map[string]any{"created": true, "account": account})
+}
+
+func runEnsureNode(args []string, stdout, stderr io.Writer) error {
+	flags := flag.NewFlagSet("ensure-node", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	databasePath := flags.String("database", defaultDatabasePath(), "SQLite database file")
+	nodeID := flags.String("node-id", "", "node identity to register before Agent enrollment")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	repository, err := openMigrated(ctx, *databasePath)
+	if err != nil {
+		return err
+	}
+	defer repository.Close()
+	created, err := repository.EnsurePendingNode(ctx, *nodeID)
+	if err != nil {
+		return err
+	}
+	return writeJSON(stdout, map[string]any{"node_id": *nodeID, "created": created})
 }
 
 func runToken(args []string, stdout, stderr io.Writer) error {
@@ -694,5 +718,5 @@ func writeJSON(writer io.Writer, value any) error {
 }
 
 func printUsage(writer io.Writer) {
-	fmt.Fprintln(writer, "usage: flux-controller <key-init|migrate|owner-init|token|publish|plan-validate|plan-apply|plan-status|plan-rollback|backup|restore|serve> [flags]")
+	fmt.Fprintln(writer, "usage: flux-controller <key-init|migrate|owner-init|ensure-node|token|publish|plan-validate|plan-apply|plan-status|plan-rollback|backup|restore|serve> [flags]")
 }

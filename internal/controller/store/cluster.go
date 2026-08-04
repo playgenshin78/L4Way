@@ -1623,7 +1623,7 @@ func syncNodeProfiles(ctx context.Context, tx *transaction, plan cluster.Plan) e
 			return fmt.Errorf("check scheduling node %s: %w", node.ID, err)
 		}
 		if !exists {
-			return fmt.Errorf("cluster node %s has not been enrolled", node.ID)
+			return fmt.Errorf("cluster node %s has not been registered", node.ID)
 		}
 		var profileOwner string
 		if err := tx.QueryRow(ctx, `SELECT plan_id FROM node_scheduling_profiles WHERE node_id=$1 FOR UPDATE`, node.ID).Scan(&profileOwner); err != nil && !errors.Is(err, sql.ErrNoRows) {

@@ -12,6 +12,7 @@ SERVICE_WAS_ACTIVE=""
 SERVICE_WAS_ENABLED=""
 SERVICE_NAME=""
 IP_FORWARD_PREVIOUS=""
+CONTROLLER_USER_CREATED=0
 
 MODE=""
 RELEASE_URL="${FLUX_RELEASE_URL:-}"
@@ -127,6 +128,9 @@ restore_changes() {
   fi
   if [[ -n "${IP_FORWARD_PREVIOUS}" && -w /proc/sys/net/ipv4/ip_forward ]]; then
     sysctl -q -w "net.ipv4.ip_forward=${IP_FORWARD_PREVIOUS}" >/dev/null 2>&1 || true
+  fi
+  if [[ ${CONTROLLER_USER_CREATED} -eq 1 ]]; then
+    userdel flux-controller >/dev/null 2>&1 || warn "未能移除本次创建的 flux-controller 系统用户"
   fi
 }
 
@@ -545,10 +549,13 @@ install_controller() {
   backup_path /etc/systemd/system/flux-controller.service
   backup_path /etc/flux-controller/flux-controller.env
   backup_path /opt/flux/web
+  backup_path /var/lib/flux-controller
 
   log "安装 Controller 和 Web 控制台"
-  getent passwd flux-controller >/dev/null 2>&1 ||
+  if ! getent passwd flux-controller >/dev/null 2>&1; then
     useradd --system --home-dir /var/lib/flux-controller --shell /usr/sbin/nologin flux-controller
+    CONTROLLER_USER_CREATED=1
+  fi
   install -d -m 0750 -o flux-controller -g flux-controller /var/lib/flux-controller
   install -d -m 0750 -o flux-controller -g flux-controller /var/lib/flux-controller/backups
   chown -R flux-controller:flux-controller /var/lib/flux-controller
@@ -603,6 +610,9 @@ install_controller() {
     if ! run_as_controller /usr/local/bin/flux-controller plan-status \
       --database /var/lib/flux-controller/flux.db \
       --plan-id "${PLAN_ID}" >/dev/null 2>&1; then
+      run_as_controller /usr/local/bin/flux-controller ensure-node \
+        --database /var/lib/flux-controller/flux.db \
+        --node-id "${INITIAL_NODE_ID}" >/dev/null
       create_initial_plan
     fi
     rm -f /var/lib/flux-controller/.needs-initial-plan

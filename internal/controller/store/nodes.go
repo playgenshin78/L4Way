@@ -24,6 +24,44 @@ type NodeSummary struct {
 	UpdatedAt          time.Time       `json:"updated_at"`
 }
 
+// EnsurePendingNode creates the minimal node record needed to include a node
+// in a Cluster Plan before its Agent has enrolled. It is intentionally
+// idempotent so installer retries do not create additional state. A revoked
+// node ID can never be reintroduced this way.
+func (s *Store) EnsurePendingNode(ctx context.Context, nodeID string) (bool, error) {
+	if err := spec.ValidateIdentifier("node_id", nodeID); err != nil {
+		return false, err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return false, fmt.Errorf("begin pending node transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+	created, err := ensurePendingNodeTx(ctx, tx, nodeID)
+	if err != nil {
+		return false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return false, fmt.Errorf("commit pending node transaction: %w", err)
+	}
+	return created, nil
+}
+
+func ensurePendingNodeTx(ctx context.Context, tx *transaction, nodeID string) (bool, error) {
+	result, err := tx.Exec(ctx, `INSERT INTO nodes(id) VALUES ($1) ON CONFLICT (id) DO NOTHING`, nodeID)
+	if err != nil {
+		return false, fmt.Errorf("ensure pending node: %w", err)
+	}
+	var nodeRevoked bool
+	if err := tx.QueryRow(ctx, `SELECT revoked_at IS NOT NULL FROM nodes WHERE id=$1`, nodeID).Scan(&nodeRevoked); err != nil {
+		return false, fmt.Errorf("check pending node status: %w", err)
+	}
+	if nodeRevoked {
+		return false, ErrNodeRevoked
+	}
+	return result.RowsAffected() == 1, nil
+}
+
 func (s *Store) ListNodes(ctx context.Context, limit, offset int) ([]NodeSummary, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 100

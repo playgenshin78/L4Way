@@ -272,6 +272,42 @@ func TestSQLiteClusterPlanScheduling(t *testing.T) {
 	}
 }
 
+func TestSQLitePendingNodeCanBootstrapInitialClusterPlan(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	repository, err := Open(ctx, filepath.Join(t.TempDir(), "bootstrap.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer repository.Close()
+	if err := repository.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	created, err := repository.EnsurePendingNode(ctx, "node-a")
+	if err != nil || !created {
+		t.Fatalf("ensure pending node created=%v err=%v", created, err)
+	}
+	created, err = repository.EnsurePendingNode(ctx, "node-a")
+	if err != nil || created {
+		t.Fatalf("second ensure pending node created=%v err=%v", created, err)
+	}
+	plan := cluster.Plan{
+		SchemaVersion: 1,
+		ID:            "default",
+		Revision:      1,
+		Nodes: []cluster.Node{{
+			ID: "node-a", Enabled: true,
+			Roles:         []cluster.NodeRole{cluster.RoleIngress, cluster.RoleExit},
+			ListenIPs:     []netip.Addr{netip.MustParseAddr("192.0.2.10")},
+			FailureDomain: "default",
+			Capacity:      cluster.Capacity{MaxForwards: 100},
+		}},
+	}
+	if _, err := repository.ApplyClusterPlan(ctx, plan, "installer"); err != nil {
+		t.Fatalf("apply initial plan with pending node: %v", err)
+	}
+}
+
 func TestTrafficQuotaPauseUpdatesActiveClusterPlan(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()

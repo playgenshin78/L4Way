@@ -198,15 +198,8 @@ func (s *Store) CreateEnrollmentToken(ctx context.Context, nodeID string, ttl ti
 		return "", time.Time{}, fmt.Errorf("begin enrollment token transaction: %w", err)
 	}
 	defer tx.Rollback(ctx)
-	if _, err := tx.Exec(ctx, `INSERT INTO nodes(id) VALUES ($1) ON CONFLICT (id) DO NOTHING`, nodeID); err != nil {
-		return "", time.Time{}, fmt.Errorf("ensure enrollment node: %w", err)
-	}
-	var nodeRevoked bool
-	if err := tx.QueryRow(ctx, `SELECT revoked_at IS NOT NULL FROM nodes WHERE id=$1`, nodeID).Scan(&nodeRevoked); err != nil {
-		return "", time.Time{}, fmt.Errorf("check enrollment node status: %w", err)
-	}
-	if nodeRevoked {
-		return "", time.Time{}, ErrNodeRevoked
+	if _, err := ensurePendingNodeTx(ctx, tx, nodeID); err != nil {
+		return "", time.Time{}, err
 	}
 	var alreadyEnrolled bool
 	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM node_keys WHERE node_id=$1 AND revoked_at IS NULL)`, nodeID).Scan(&alreadyEnrolled); err != nil {

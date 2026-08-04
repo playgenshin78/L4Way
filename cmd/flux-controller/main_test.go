@@ -61,3 +61,23 @@ func TestOwnerInitIfMissingPreservesExistingPassword(t *testing.T) {
 		t.Fatal("--if-missing replaced the existing Owner password")
 	}
 }
+
+func TestEnsureNodeIsIdempotent(t *testing.T) {
+	databasePath := filepath.Join(t.TempDir(), "flux.db")
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if code := run([]string{"ensure-node", "--database", databasePath, "--node-id", "node-a"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("first ensure-node code=%d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), `"created": true`) {
+		t.Fatalf("first ensure-node output=%s", stdout.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := run([]string{"ensure-node", "--database", databasePath, "--node-id", "node-a"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("second ensure-node code=%d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), `"created": false`) {
+		t.Fatalf("second ensure-node output=%s", stdout.String())
+	}
+}
